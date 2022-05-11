@@ -1,0 +1,5 @@
+/home/vlad/CLionProjects/Deque/cmake-build-debug/CMakeFiles/Deque.dir
+/home/vlad/CLionProjects/Deque/cmake-build-debug/CMakeFiles/mes_test.dir
+/home/vlad/CLionProjects/Deque/cmake-build-debug/CMakeFiles/test.dir
+/home/vlad/CLionProjects/Deque/cmake-build-debug/CMakeFiles/edit_cache.dir
+/home/vlad/CLionProjects/Deque/cmake-build-debug/CMakeFiles/rebuild_cache.dir
