@@ -1,0 +1,4 @@
+# ninja log v5
+1	2473	1650109990946958700	CMakeFiles/test.dir/stackallocator_test.cpp.o	b97ee1c95bc6c431
+0	24	1650126638900053132	build.ninja	f5d1d1b7b8cfa297
+2473	2586	1650109991062960353	test	10ba3b9eaaac6d04
