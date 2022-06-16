@@ -21,14 +21,14 @@ class Deque {
   Deque();
   Deque(int, const T&);
   Deque(const Deque<T>&);
-  ~Deque();
+  ~Deque() noexcept;
 
   Deque<T>& operator=(const Deque<T>&);
 
   using iterator = CommonIterator<false>;
   using const_iterator = CommonIterator<true>;
 
-  size_t size() const;
+  size_t size() const noexcept;
   T& operator[](ssize_t);
   const T& operator[](ssize_t) const;
   T& at(ssize_t);
@@ -41,17 +41,17 @@ class Deque {
   void insert(iterator, const T&);
   void erase(iterator);
 
-  iterator begin();
-  const_iterator begin() const;
-  iterator end();
-  const_iterator end() const;
-  const_iterator cbegin() const;
-  const_iterator cend() const;
+  iterator begin() noexcept;
+  const_iterator begin() const noexcept;
+  iterator end() noexcept;
+  const_iterator end() const noexcept;
+  const_iterator cbegin() const noexcept;
+  const_iterator cend() const noexcept;
 
-  std::reverse_iterator<iterator> rbegin();
-  std::reverse_iterator<iterator> rend();
-  std::reverse_iterator<const_iterator> crbegin();
-  std::reverse_iterator<const_iterator> crend();
+  std::reverse_iterator<iterator> rbegin() noexcept;
+  std::reverse_iterator<iterator> rend() noexcept;
+  std::reverse_iterator<const_iterator> crbegin() noexcept;
+  std::reverse_iterator<const_iterator> crend() noexcept;
 };
 
 template<typename T>
@@ -62,12 +62,16 @@ const size_t Deque<T>::START_ARRAY_COUNT_ = 8;
 
 template<typename T>
 Deque<T>::Deque(int size) : size_(size), array_count_(START_ARRAY_COUNT_) {
-  while (array_count_ * MAX_SIZE_ <= 2 * size_t(size)) { // <= !!!
+  while (array_count_ * MAX_SIZE_ <= 2 * size_) { // <= !!!
     array_count_ *= 2;
   }
-  deque_ = reinterpret_cast<T**>(new uint8_t[array_count_ * sizeof(T*)]);
-  for (size_t i = 0; i < array_count_; ++i) {
-    deque_[i] = reinterpret_cast<T*>(new uint8_t[MAX_SIZE_ * sizeof(T)]);
+  try {
+    deque_ = reinterpret_cast<T**>(new uint8_t[array_count_ * sizeof(T*)]);
+    for (size_t i = 0; i < array_count_; ++i) {
+      deque_[i] = reinterpret_cast<T*>(new uint8_t[MAX_SIZE_ * sizeof(T)]);
+    }
+  } catch (...) {
+    throw;
   }
   begin_ = {deque_ + (array_count_ / 2), MAX_SIZE_ - 1};
   start_ = {deque_, 0};
@@ -75,24 +79,30 @@ Deque<T>::Deque(int size) : size_(size), array_count_(START_ARRAY_COUNT_) {
 }
 
 template<typename T>
-Deque<T>::Deque() : Deque<T>(0) {}
+Deque<T>::Deque() try : Deque<T>(0) {} catch (...) {
+  throw;
+}
 
 template<typename T>
-Deque<T>::Deque(int size, const T& to_fill) : Deque<T>(size) {
+Deque<T>::Deque(int size, const T& to_fill) try : Deque<T>(size) {
   for (iterator it = begin(); it != end(); ++it) {
     new(it.get_array() + it.get_index()) T(to_fill);
   }
+} catch (...) {
+  throw;
 }
 
 template<typename T>
-Deque<T>::Deque(const Deque<T>& arg_deque) : Deque<T>(arg_deque.size()) {
+Deque<T>::Deque(const Deque<T>& arg_deque) try : Deque<T>(arg_deque.size()) {
   for (auto it = begin(), arg_it = arg_deque.begin(); it != end(); ++it, ++arg_it) {
     new(it.get_array() + it.get_index()) T(*arg_it);
   }
+} catch (...) {
+  throw;
 }
 
 template<typename T>
-Deque<T>::~Deque() {
+Deque<T>::~Deque() noexcept {
   for (iterator it = begin(); it != end(); ++it) {
     it->~T();
   }
@@ -106,10 +116,21 @@ template<typename T>
 void Deque<T>::reallocate(size_t new_array_count) {
   T** new_deque = reinterpret_cast<T**>(new uint8_t[new_array_count * sizeof(T*)]);
   for (size_t i = 0; i < new_array_count; ++i) {
-    if (i >= array_count_ / 2 && i < array_count_ / 2 + array_count_) {
-      new_deque[i] = deque_[i - array_count_ / 2];
-    } else {
-      new_deque[i] = reinterpret_cast<T*>(new uint8_t[MAX_SIZE_ * sizeof(T)]);
+    try {
+      if (i >= array_count_ / 2 && i < array_count_ / 2 + array_count_) {
+        new_deque[i] = deque_[i - array_count_ / 2];
+      } else {
+        new_deque[i] = reinterpret_cast<T*>(new uint8_t[MAX_SIZE_ * sizeof(T)]);
+      }
+    } catch (...) {
+      for (size_t j = 0; j < i; ++j) {
+        if (j < array_count_ || j >= array_count_ / 2 + array_count_) {
+          delete[] reinterpret_cast<uint8_t*>(new_deque[j]);
+        }
+        new_deque[j] = nullptr;
+      }
+      delete[] reinterpret_cast<uint8_t*>(new_deque);
+      throw;
     }
   }
   iterator new_begin(new_deque + array_count_ / 2 + (begin().get_ptr() - deque_), begin().get_index());
@@ -122,21 +143,27 @@ void Deque<T>::reallocate(size_t new_array_count) {
 }
 
 template<typename T>
-void Deque<T>::swap(Deque<T>& arg_deque) {
+void Deque<T>::swap(Deque<T>& arg_deque) try {
   std::swap(deque_, arg_deque.deque_);
   std::swap(size_, arg_deque.size_);
   std::swap(begin_, arg_deque.begin_);
+  std::swap(start_, arg_deque.start_);
+  std::swap(finish_, arg_deque.finish_);
+} catch (...) {
+  throw;
 }
 
 template<typename T>
-Deque<T>& Deque<T>::operator=(const Deque<T>& deque) {
+Deque<T>& Deque<T>::operator=(const Deque<T>& deque) try {
   Deque<T> tmp_deque(deque);
   swap(tmp_deque);
   return *this;
+} catch (...) {
+  throw;
 }
 
 template<typename T>
-size_t Deque<T>::size() const {
+size_t Deque<T>::size() const noexcept {
   return size_;
 }
 
@@ -170,10 +197,7 @@ const T& Deque<T>::at(ssize_t index) const {
 
 template<typename T>
 void Deque<T>::push_front(const T& element) {
-  //std::cout << "start.ptr = " << start_.get_ptr() << ' ' << "start.index = " << start_.get_index() << '\n';
-  //std::cout << "begin.ptr = " << begin().get_ptr() << ' ' << "begin.index = " << begin().get_index() << '\n';
   if (begin() == start_) {
-    //std::cout << "QQ\n";
     reallocate(2 * array_count_); // iterator's invalidation
   }
   --begin_;
@@ -193,85 +217,104 @@ void Deque<T>::push_back(const T& element) {
 }
 
 template<typename T>
-void Deque<T>::pop_front() {
-  --size_;
-  begin_->~T();
-  ++begin_;
+void Deque<T>::pop_front() try {
+  this->erase(begin());
+} catch (...) {
+  throw;
 }
 
 template<typename T>
-void Deque<T>::pop_back() {
-  --size_;
-  (begin_ + size_)->~T();
-}
-
-template<typename T>
-void Deque<T>::insert(iterator iter, const T& element) {
-  if (end() == finish_) {
-    reallocate(2 * array_count_); // iterator's invalidation
-  }
-  ++size_;
-  for (auto it = end() - 1; it != iter; --it) {
-    *it = *(it - 1);
-  }
-  *iter = element;
+void Deque<T>::pop_back() try {
+  this->erase(end() - 1);
+} catch (...) {
+  throw;
 }
 
 template<typename T>
 void Deque<T>::erase(iterator iter) {
-  for (auto it = iter; it + 1 != end(); ++it) {
-    *it = *(it + 1);
+  if (size_ == 0) {
+    throw std::out_of_range("deque is empty");
+  } else if (iter < begin() || iter >= end()) {
+    throw std::out_of_range("out of range");
+  }
+  if (iter == begin_) {
+    ++begin_;
+  } else {
+    for (auto it = iter; it + 1 != end(); ++it) {
+      *it = *(it + 1);
+    }
   }
   --size_;
 }
 
 template<typename T>
-typename Deque<T>::iterator Deque<T>::begin() {
+void Deque<T>::insert(iterator iter, const T& element) {
+  if (iter < begin() || iter > end()) {
+    throw std::out_of_range("out of range");
+  }
+  if (end() == finish_) {
+    reallocate(2 * array_count_); // iterator's invalidation
+  }
+  Deque<T> tmp_deque(*this);
+  try {
+    ++size_;
+    for (auto it = end(); it != iter; --it) {
+      *it = *(it - 1);
+    }
+    *iter = element;
+  } catch (...) {
+    *this = tmp_deque;
+    throw;
+  }
+}
+
+template<typename T>
+typename Deque<T>::iterator Deque<T>::begin() noexcept {
   return begin_;
 }
 
 template<typename T>
-typename Deque<T>::iterator Deque<T>::end() {
+typename Deque<T>::iterator Deque<T>::end() noexcept {
   return begin_ + size_;
 }
 
 template<typename T>
-typename Deque<T>::const_iterator Deque<T>::cbegin() const {
+typename Deque<T>::const_iterator Deque<T>::cbegin() const noexcept {
   return const_iterator(begin_);
 }
 
 template<typename T>
-typename Deque<T>::const_iterator Deque<T>::begin() const {
+typename Deque<T>::const_iterator Deque<T>::begin() const noexcept {
   return cbegin();
 }
 
 template<typename T>
-typename Deque<T>::const_iterator Deque<T>::cend() const {
+typename Deque<T>::const_iterator Deque<T>::cend() const noexcept {
   return const_iterator(begin_ + size_);
 }
 
 template<typename T>
-typename Deque<T>::const_iterator Deque<T>::end() const {
+typename Deque<T>::const_iterator Deque<T>::end() const noexcept {
   return cend();
 }
 
 template<typename T>
-std::reverse_iterator<typename Deque<T>::iterator> rbegin() {
+std::reverse_iterator<typename Deque<T>::iterator> rbegin() noexcept {
   return std::reverse_iterator(Deque<T>::end());
 }
 
 template<typename T>
-std::reverse_iterator<typename Deque<T>::iterator> Deque<T>::rend() {
+std::reverse_iterator<typename Deque<T>::iterator> Deque<T>::rend() noexcept {
   return std::reverse_iterator(Deque<T>::begin());
 }
 
 template<typename T>
-std::reverse_iterator<typename Deque<T>::const_iterator> Deque<T>::crbegin() {
+std::reverse_iterator<typename Deque<T>::const_iterator> Deque<T>::crbegin() noexcept {
   return std::reverse_iterator(Deque<T>::cend());
 }
 
 template<typename T>
-std::reverse_iterator<typename Deque<T>::const_iterator> Deque<T>::crend() {
+std::reverse_iterator<typename Deque<T>::const_iterator> Deque<T>::crend() noexcept {
   return std::reverse_iterator(Deque<T>::cbegin());
 }
 
@@ -295,25 +338,25 @@ class Deque<T>::CommonIterator {
 
   operator CommonIterator<true>() const;
 
-  const CommonIterator<is_const> operator--(int);
-  const CommonIterator<is_const> operator++(int);
-  CommonIterator<is_const>& operator--();
-  CommonIterator<is_const>& operator++();
-  CommonIterator<is_const>& operator+=(ssize_t);
-  CommonIterator<is_const>& operator-=(ssize_t);
-  CommonIterator<is_const> operator+(ssize_t) const;
-  CommonIterator<is_const> operator-(ssize_t) const;
+  const CommonIterator<is_const> operator--(int) noexcept;
+  const CommonIterator<is_const> operator++(int) noexcept;
+  CommonIterator<is_const>& operator--() noexcept;
+  CommonIterator<is_const>& operator++() noexcept;
+  CommonIterator<is_const>& operator+=(ssize_t) noexcept;
+  CommonIterator<is_const>& operator-=(ssize_t) noexcept;
+  CommonIterator<is_const> operator+(ssize_t) const noexcept;
+  CommonIterator<is_const> operator-(ssize_t) const noexcept;
 
   reference operator*() const;
   pointer operator->() const;
 
-  size_t operator-(CommonIterator<is_const>);
-  bool operator<(CommonIterator<is_const>);
-  bool operator==(CommonIterator<is_const>);
-  bool operator>(CommonIterator<is_const>);
-  bool operator<=(CommonIterator<is_const>);
-  bool operator>=(CommonIterator<is_const>);
-  bool operator!=(CommonIterator<is_const>);
+  size_t operator-(CommonIterator<is_const>) noexcept;
+  bool operator<(CommonIterator<is_const>) noexcept;
+  bool operator==(CommonIterator<is_const>) noexcept;
+  bool operator>(CommonIterator<is_const>) noexcept;
+  bool operator<=(CommonIterator<is_const>) noexcept;
+  bool operator>=(CommonIterator<is_const>) noexcept;
+  bool operator!=(CommonIterator<is_const>) noexcept;
 
   T* get_array() const;
   T** get_ptr() const;
@@ -329,7 +372,7 @@ Deque<T>::CommonIterator<is_const>::operator CommonIterator<true>() const {
 template<typename T>
 template<bool is_const>
 const typename Deque<T>::template CommonIterator<is_const>
-Deque<T>::CommonIterator<is_const>::operator--(int) {
+Deque<T>::CommonIterator<is_const>::operator--(int) noexcept {
   CommonIterator temp_iterator(*this);
   --(*this);
   return temp_iterator;
@@ -338,7 +381,7 @@ Deque<T>::CommonIterator<is_const>::operator--(int) {
 template<typename T>
 template<bool is_const>
 const typename Deque<T>::template CommonIterator<is_const>
-Deque<T>::CommonIterator<is_const>::operator++(int) {
+Deque<T>::CommonIterator<is_const>::operator++(int) noexcept {
   CommonIterator temp_iterator(*this);
   ++(*this);
   return temp_iterator;
@@ -347,7 +390,7 @@ Deque<T>::CommonIterator<is_const>::operator++(int) {
 template<typename T>
 template<bool is_const>
 typename Deque<T>::template CommonIterator<is_const>&
-Deque<T>::CommonIterator<is_const>::operator--() {
+Deque<T>::CommonIterator<is_const>::operator--() noexcept {
   (*this) -= 1;
   return *this;
 }
@@ -355,7 +398,7 @@ Deque<T>::CommonIterator<is_const>::operator--() {
 template<typename T>
 template<bool is_const>
 typename Deque<T>::template CommonIterator<is_const>&
-Deque<T>::CommonIterator<is_const>::operator++() {
+Deque<T>::CommonIterator<is_const>::operator++() noexcept {
   (*this) += 1;
   return *this;
 }
@@ -363,7 +406,7 @@ Deque<T>::CommonIterator<is_const>::operator++() {
 template<typename T>
 template<bool is_const>
 typename Deque<T>::template CommonIterator<is_const>&
-Deque<T>::CommonIterator<is_const>::operator+=(ssize_t val) {
+Deque<T>::CommonIterator<is_const>::operator+=(ssize_t val) noexcept {
   if (val < 0) {
     return (*this) -= (-val);
   } else {
@@ -380,7 +423,7 @@ Deque<T>::CommonIterator<is_const>::operator+=(ssize_t val) {
 template<typename T>
 template<bool is_const>
 typename Deque<T>::template CommonIterator<is_const>&
-Deque<T>::CommonIterator<is_const>::operator-=(ssize_t val) {
+Deque<T>::CommonIterator<is_const>::operator-=(ssize_t val) noexcept {
   if (val < 0) {
     return (*this) += (-val);
   } else {
@@ -397,7 +440,7 @@ Deque<T>::CommonIterator<is_const>::operator-=(ssize_t val) {
 template<typename T>
 template<bool is_const>
 typename Deque<T>::template CommonIterator<is_const>
-Deque<T>::CommonIterator<is_const>::operator+(ssize_t val) const {
+Deque<T>::CommonIterator<is_const>::operator+(ssize_t val) const noexcept {
   CommonIterator temp_iterator(*this);
   temp_iterator += val;
   return temp_iterator;
@@ -406,7 +449,7 @@ Deque<T>::CommonIterator<is_const>::operator+(ssize_t val) const {
 template<typename T>
 template<bool is_const>
 typename Deque<T>::template CommonIterator<is_const>
-Deque<T>::CommonIterator<is_const>::operator-(ssize_t val) const {
+Deque<T>::CommonIterator<is_const>::operator-(ssize_t val) const noexcept {
   return (*this) + (-val);
 }
 
@@ -426,7 +469,8 @@ Deque<T>::CommonIterator<is_const>::operator->() const {
 
 template<typename T>
 template<bool is_const>
-size_t Deque<T>::CommonIterator<is_const>::operator-(typename Deque<T>::template CommonIterator<is_const> arg_it) {
+size_t
+Deque<T>::CommonIterator<is_const>::operator-(typename Deque<T>::template CommonIterator<is_const> arg_it) noexcept {
   if (*this < arg_it) {
     return -(arg_it - *this);
   } else {
@@ -443,38 +487,44 @@ size_t Deque<T>::CommonIterator<is_const>::operator-(typename Deque<T>::template
 
 template<typename T>
 template<bool is_const>
-bool Deque<T>::CommonIterator<is_const>::operator<(typename Deque<T>::template CommonIterator<is_const> arg_it) {
+bool
+Deque<T>::CommonIterator<is_const>::operator<(typename Deque<T>::template CommonIterator<is_const> arg_it) noexcept {
   return (ptr_ < arg_it.ptr_ ||
           (ptr_ == arg_it.ptr_ && index_ < arg_it.index_));
 }
 
 template<typename T>
 template<bool is_const>
-bool Deque<T>::CommonIterator<is_const>::operator==(typename Deque<T>::template CommonIterator<is_const> arg_it) {
+bool
+Deque<T>::CommonIterator<is_const>::operator==(typename Deque<T>::template CommonIterator<is_const> arg_it) noexcept {
   return (ptr_ == arg_it.ptr_ && index_ == arg_it.index_);
 }
 
 template<typename T>
 template<bool is_const>
-bool Deque<T>::CommonIterator<is_const>::operator>(typename Deque<T>::template CommonIterator<is_const> arg_it) {
+bool
+Deque<T>::CommonIterator<is_const>::operator>(typename Deque<T>::template CommonIterator<is_const> arg_it) noexcept {
   return !(*this < arg_it || *this == arg_it);
 }
 
 template<typename T>
 template<bool is_const>
-bool Deque<T>::CommonIterator<is_const>::operator<=(typename Deque<T>::template CommonIterator<is_const> arg_it) {
+bool
+Deque<T>::CommonIterator<is_const>::operator<=(typename Deque<T>::template CommonIterator<is_const> arg_it) noexcept {
   return (*this < arg_it || *this == arg_it);
 }
 
 template<typename T>
 template<bool is_const>
-bool Deque<T>::CommonIterator<is_const>::operator>=(typename Deque<T>::template CommonIterator<is_const> arg_it) {
+bool
+Deque<T>::CommonIterator<is_const>::operator>=(typename Deque<T>::template CommonIterator<is_const> arg_it) noexcept {
   return !(*this < arg_it);
 }
 
 template<typename T>
 template<bool is_const>
-bool Deque<T>::CommonIterator<is_const>::operator!=(typename Deque<T>::template CommonIterator<is_const> arg_it) {
+bool
+Deque<T>::CommonIterator<is_const>::operator!=(typename Deque<T>::template CommonIterator<is_const> arg_it) noexcept {
   return !(*this == arg_it);
 }
 
