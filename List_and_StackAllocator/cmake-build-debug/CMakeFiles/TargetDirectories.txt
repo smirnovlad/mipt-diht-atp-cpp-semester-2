@@ -1,4 +1,0 @@
-/home/vlad/CLionProjects/List_and_StackAllocator/cmake-build-debug/CMakeFiles/main.dir
-/home/vlad/CLionProjects/List_and_StackAllocator/cmake-build-debug/CMakeFiles/test.dir
-/home/vlad/CLionProjects/List_and_StackAllocator/cmake-build-debug/CMakeFiles/edit_cache.dir
-/home/vlad/CLionProjects/List_and_StackAllocator/cmake-build-debug/CMakeFiles/rebuild_cache.dir
